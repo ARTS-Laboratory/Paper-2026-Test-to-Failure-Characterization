@@ -144,12 +144,13 @@ legend_handles, legend_labels = [], []
 for i in range(len(board_names)):
     color = next(colors)
     plt.plot(impact_numbers_percents[i], resistance_numbers_percents[i],
-             marker='.', linestyle='', linewidth=1, color=color)
+             marker='.', linestyle='', linewidth=0.5, color=color)
     plt.plot(fit_line_x_values[i], fit_line_y_values[i],
-             linewidth=1.2, color=color)
-    handle = Line2D([0], [0], marker='.', color=color, linestyle='-', markersize=6, linewidth=1.2)
+             linewidth=0.5, color=color)
+    handle = Line2D([0], [0], marker='.', color=color, linestyle='-', markersize=6, linewidth=0.5)
     legend_handles.append(handle)
-    legend_labels.append(board_names[i])
+    save_name = board_save_map.get(data_list[i], board_names[i])
+    legend_labels.append(save_name)
 
 plt.xlabel("impact percent")
 plt.ylabel("resistance percent")
