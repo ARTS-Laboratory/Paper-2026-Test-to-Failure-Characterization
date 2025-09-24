@@ -1,0 +1,2 @@
+# Removed Files
+This folder contains records excluded from the primary dataset due to suspected acquisition artifacts (e.g., DAQ dropouts/saturation, mis-triggers, sensor detachment) that can occur in high-energy shock tests. We keep these files for full transparency and reproducibility, and they may be selectively re-introduced in future analyses if a given processing challenge or research goal warrants their inclusion.

@@ -1,11 +1,16 @@
 # Paper-2026-Test-to-Failure-Characterization
-Data and Code for the 2026 IMAC paper titled "Test-to-Failure Characterization and Cumulative Damage Modeling of Electronic Systems Under Repeated Shock Loading"
+Data and Code for the 2026 IMAC paper titled "Test-to-Failure Characterization and Cumulative Damage Modeling of Electronic Systems Under Repeated Shock Loading".
 
 ---
 
 ## Overview
- ...
+This repository provides the experimental datasets and analysis scripts developed for the study.  
+The work introduces a repeatable test-to-failure framework for printed circuit boards subjected to repeated high-energy shock events, with simultaneous resistance monitoring and high-rate acceleration measurements. Extracted time- and frequency-domain features, along with baseline cumulative damage estimates, are included to support future analysis and reproducibility.
 
+- **Data**: Raw and processed resistance/acceleration signals from repeated shock tests.  
+- **Analysis**: Feature extraction, normalization, and analysis scripts.  
+
+---
 
  ## Licensing and Citation
 
@@ -21,7 +26,12 @@ This work is licensed under a
 
 Cite as:
 
-in bibtex
 
-@Misc{...
+@Misc{ARTSLab2026Paper2026Test,     
+  author = {{ARTS-L}ab},  
+  howpublished = {GitHub},    
+  title  = {Paper-2026-Test-to-Failure-Characterization},    
+  groups = {{ARTS-L}ab},    
+  year = {2026},   
+  url    = {https://github.com/ARTS-Laboratory/Paper-2025-Physics-based-Prediction-of-Remaining-Useful-Life},   
 }
