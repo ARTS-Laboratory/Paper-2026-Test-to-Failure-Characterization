@@ -150,7 +150,7 @@ for i in range(len(board_names)):
     handle = Line2D([0], [0], marker='.', color=color, linestyle='-', markersize=6, linewidth=0.5)
     legend_handles.append(handle)
     save_name = board_save_map.get(data_list[i], board_names[i])
-    legend_labels.append(save_name)
+    legend_labels.append(save_name.lower())
 
 plt.xlabel("impact percent")
 plt.ylabel("resistance percent")
@@ -162,94 +162,105 @@ plt.savefig(os.path.join(save_path, "selected_boards_resist.png"), dpi=300, bbox
 plt.show()
 
 # %% FEATURE EXTRACTION
-y_ranges = {
-    "Board 1": {"top": (-55, 55), "bottom": (-15, 15)},
-    "Board 2": {"top": (-15, 15), "bottom": (-15, 15)},
-    "Board 3": {"top": (-55, 55), "bottom": (-15, 50)}
-}
+# y_ranges = {
+#     "Board 1": {"top": (-55, 55), "bottom": (-15, 15)},
+#     "Board 2": {"top": (-15, 15), "bottom": (-15, 15)},
+#     "Board 3": {"top": (-55, 55), "bottom": (-15, 50)}
+# }
 
-for i, board in enumerate(data_list):
-    if i in only_boards:
-        board_folder = os.path.join(file_path, board)
-        lvm_files = sorted([f for f in os.listdir(board_folder) if f.endswith(".lvm")])
+# # manually set x-axis ranges (example values – adjust as needed)
+# x_ranges = {
+#     "Board 1": (0, 50),
+#     "Board 2": (0, 50),
+#     "Board 3": (0, 80)
+# }
 
-        impacts, features = [], [[] for _ in feature_names]
-        for j, filename in enumerate(lvm_files):
-            data = np.loadtxt(os.path.join(board_folder, filename), usecols=(2)).tolist()
-            data_zeroed = [val - data[0] for val in data]
-            current_max_index = np.argmax([abs(x) for x in data_zeroed])
-            current_max = abs(data_zeroed[current_max_index])
-            if current_max_index < 1000:
-                data_small = data_zeroed[:(current_max_index + 11000)]
-            else:
-                data_small = data_zeroed[(current_max_index - 1000):(current_max_index + 11000)]
+# for i, board in enumerate(data_list):
+#     if i in only_boards:
+#         board_folder = os.path.join(file_path, board)
+#         lvm_files = sorted([f for f in os.listdir(board_folder) if f.endswith(".lvm")])
 
-            abs_mean = np.mean(np.abs(data_small))
-            rms_val = np.sqrt(np.mean(np.square(data_small)))
+#         impacts, features = [], [[] for _ in feature_names]
+#         for j, filename in enumerate(lvm_files):
+#             data = np.loadtxt(os.path.join(board_folder, filename), usecols=(2)).tolist()
+#             data_zeroed = [val - data[0] for val in data]
+#             current_max_index = np.argmax([abs(x) for x in data_zeroed])
+#             current_max = abs(data_zeroed[current_max_index])
+#             if current_max_index < 1000:
+#                 data_small = data_zeroed[:(current_max_index + 11000)]
+#             else:
+#                 data_small = data_zeroed[(current_max_index - 1000):(current_max_index + 11000)]
 
-            features[0].append(current_max)
-            features[1].append(abs_mean)
-            features[2].append(rms_val)
-            features[3].append(skew(data_small))
-            features[4].append(kurtosis(data_small))
-            features[5].append(current_max / rms_val if rms_val != 0 else 0)
-            features[6].append(rms_val / abs_mean if abs_mean != 0 else 0)
-            features[7].append(current_max / abs_mean if abs_mean != 0 else 0)
-            impacts.append(j)
+#             abs_mean = np.mean(np.abs(data_small))
+#             rms_val = np.sqrt(np.mean(np.square(data_small)))
 
-        # --- Convert to % deviation from baseline (first 5 points) ---
-        features_percent = []
-        for f in features:
-            f = np.array(f)
-            baseline = np.mean(f[:5]) if np.mean(f[:5]) != 0 else 1.0
-            f_percent = 100 * (f - baseline) / baseline
-            features_percent.append(f_percent)
+#             features[0].append(current_max)
+#             features[1].append(abs_mean)
+#             features[2].append(rms_val)
+#             features[3].append(skew(data_small))
+#             features[4].append(kurtosis(data_small))
+#             features[5].append(current_max / rms_val if rms_val != 0 else 0)
+#             features[6].append(rms_val / abs_mean if abs_mean != 0 else 0)
+#             features[7].append(current_max / abs_mean if abs_mean != 0 else 0)
+#             impacts.append(j)
 
-        # --- Plot ---
-        fig, axs = plt.subplots(2, 1, figsize=(6.5, 3), sharex=True)
-        colors = itertools.cycle(cm.tab10.colors)
-        feature_colors = [next(colors) for _ in feature_names]
+#         # --- Convert to % deviation from baseline (first 5 points) ---
+#         features_percent = []
+#         for f in features:
+#             f = np.array(f)
+#             baseline = np.mean(f[:5]) if np.mean(f[:5]) != 0 else 1.0
+#             f_percent = 100 * (f - baseline) / baseline
+#             features_percent.append(f_percent)
 
-        # First 4 features
-        for idx in range(4):
-            axs[0].plot(impacts, features_percent[idx], marker='.', linestyle='-', linewidth=1,
-                        label=feature_names[idx], color=feature_colors[idx])
-        axs[0].grid(True)
+#         # --- Plot ---
+#         fig, axs = plt.subplots(2, 1, figsize=(6.5, 3), sharex=True)
+#         colors = itertools.cycle(cm.tab10.colors)
+#         feature_colors = [next(colors) for _ in feature_names]
 
-        # Last 4 features
-        for idx in range(4, 8):
-            axs[1].plot(impacts, features_percent[idx], marker='.', linestyle='-', linewidth=1,
-                        label=feature_names[idx], color=feature_colors[idx])
-        axs[1].set_xlabel("impact number")
-        axs[1].grid(True)
+#         # First 4 features
+#         for idx in range(4):
+#             axs[0].plot(impacts, features_percent[idx], marker='.', linestyle='-', linewidth=1,
+#                         label=feature_names[idx], color=feature_colors[idx])
+#         axs[0].grid(True)
 
-        # Apply custom ranges (per board, per subplot)
-        save_name = board_save_map[board]  # Board 1,2,3
-        board_ranges = y_ranges.get(save_name, {"top": (-50, 50), "bottom": (-50, 50)})
-        axs[0].set_ylim(*board_ranges["top"])
-        axs[1].set_ylim(*board_ranges["bottom"])
+#         # Last 4 features
+#         for idx in range(4, 8):
+#             axs[1].plot(impacts, features_percent[idx], marker='.', linestyle='-', linewidth=1,
+#                         label=feature_names[idx], color=feature_colors[idx])
+#         axs[1].set_xlabel("impact number")
+#         axs[1].grid(True)
 
-        fig.text(-0.03, 0.6, "feature deviation from baseline (%)", va="center", rotation="vertical")
+#         # Apply custom ranges (per board)
+#         save_name = board_save_map[board]
+#         board_ranges = y_ranges.get(save_name, {"top": (-50, 50), "bottom": (-50, 50)})
+#         axs[0].set_ylim(*board_ranges["top"])
+#         axs[1].set_ylim(*board_ranges["bottom"])
 
-        for ax in axs:
-            ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.0f"))
+#         # Apply custom x-range
+#         if save_name in x_ranges:
+#             axs[0].set_xlim(*x_ranges[save_name])
+#             axs[1].set_xlim(*x_ranges[save_name])
 
-        # Legend
-        handles, labels = [], []
-        for ax in axs:
-            h, l = ax.get_legend_handles_labels()
-            handles.extend(h); labels.extend(l)
-        labels = [lbl.lower() for lbl in labels]
+#         fig.text(-0.03, 0.6, "feature deviation from baseline (%)", va="center", rotation="vertical")
 
-        fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.1), ncol=4,
-                   facecolor="white", edgecolor="lightgray", framealpha=1, frameon=True)
+#         for ax in axs:
+#             ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.0f"))
 
-        plt.tight_layout(rect=[0, 0.05, 1, 1])
+#         # Legend
+#         handles, labels = [], []
+#         for ax in axs:
+#             h, l = ax.get_legend_handles_labels()
+#             handles.extend(h); labels.extend(l)
+#         labels = [lbl.lower() for lbl in labels]
 
-        plt.savefig(os.path.join(save_path, f"{save_name}_feature_subplots.png"),
-                    dpi=300, bbox_inches="tight")
-        plt.show()
-        
+#         fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.1), ncol=4,
+#                    facecolor="white", edgecolor="lightgray", framealpha=1, frameon=True)
+
+#         plt.tight_layout(rect=[0, 0.05, 1, 1])
+#         plt.savefig(os.path.join(save_path, f"{save_name}_feature_subplots.png"),
+#                     dpi=300, bbox_inches="tight")
+#         plt.show()
+
 # %% FEATURE PLOTTING (SPIE-style stacked traces with manual outlier removal)
 
 import numpy.ma as ma
@@ -267,6 +278,12 @@ outliers = {
     "board 3": { 
         "impulse factor": [58], "shape factor": [58], "crest factor": [58],
         "kurtosis": [58], "rms": [58], "absolute mean": [58], "maximum": [58]}
+}
+
+x_ranges = {
+    "board 1": (-2, 48),
+    "board 2": (-2, 49),
+    "board 3": (-2, 75)
 }
 
 for i, board in enumerate(data_list):
@@ -332,22 +349,43 @@ for i, board in enumerate(data_list):
             f_norm = (f_percent - f_min) / (f_max - f_min + 1e-9)
             norms.append(f_norm)
 
-        # --- Plot stacked traces ---
+        # # --- Plot stacked traces ---
+        # fig, ax = plt.subplots(figsize=(6.5, 3.5))
+        # j = len(norms) - 1
+        # for trace, fname in zip(norms[::-1], feature_names[::-1]):  # reverse for correct order
+        #     offset_trace = trace + j * y_offset
+        #     trace_masked = ma.masked_invalid(offset_trace)
+        #     ax.plot(np.arange(len(trace)), trace_masked,
+        #             label=fname.lower() if fname.lower() != "rms" else "RMS",
+        #             linewidth=0.5)
+        #     j -= 1
+            
+        # --- Plot stacked traces (as points) ---
         fig, ax = plt.subplots(figsize=(6.5, 3.5))
         j = len(norms) - 1
         for trace, fname in zip(norms[::-1], feature_names[::-1]):  # reverse for correct order
             offset_trace = trace + j * y_offset
             trace_masked = ma.masked_invalid(offset_trace)
-            ax.plot(np.arange(len(trace)), trace_masked,
-                    label=fname.lower(), linewidth=0.5)
+            ax.scatter(np.arange(len(trace)), trace_masked,
+                        label=fname.lower() if fname.lower() != "rms" else "RMS",
+                        s=5,  # marker size
+                        alpha=0.8)  # optional transparency
             j -= 1
 
-        # y-ticks as lowercase feature labels
+    
+        # y-ticks with lowercase except RMS
+        ytick_labels = [f.lower() if f.lower() != "rms" else "RMS" for f in feature_names]
         ax.set_yticks(np.arange(0, len(feature_names), 1))
-        ax.set_yticklabels([f.lower() for f in feature_names])
+        ax.set_yticklabels(ytick_labels)
+
         ax.set_xlabel("impact number")
         ax.set_ylabel("normalized feature traces")
         ax.grid(True, zorder=1)
+
+        # --- Apply custom x-range per board ---
+        save_name = board_save_map[board].lower()
+        if save_name in x_ranges:
+            ax.set_xlim(*x_ranges[save_name])
 
         plt.tight_layout()
         plt.savefig(os.path.join(save_path, f"{save_name}_features_stacked.png"),
@@ -373,3 +411,41 @@ plt.legend(loc="upper right", facecolor="white", edgecolor="lightgray", framealp
 plt.grid(True); plt.tight_layout()
 plt.savefig(os.path.join(save_path, "excitation_response.png"), dpi=300, bbox_inches="tight")
 plt.show()
+
+# %% STATISTICAL ANALYSIS (Pearson correlation between resistance and features)
+from scipy.stats import pearsonr
+import matplotlib.pyplot as plt
+import numpy as np
+
+results = []
+
+for i, board in enumerate(data_list):
+    if i in only_boards:
+        save_name = board_save_map[board]
+
+        # --- Resistance trendline (already smoothed/fitted) ---
+        res_fit_x = fit_line_x_values[i]  # 0–100 percent
+        res_fit_y = fit_line_y_values[i]
+
+        # match to actual impacts (% scale)
+        feature_impacts = np.linspace(0, 100, len(features[0]))
+        res_fit_interp = np.interp(feature_impacts, res_fit_x, res_fit_y)
+
+        # --- Compute correlations for each feature ---
+        board_corrs = {}
+        for f_idx, f_vals in enumerate(features_percent):
+            f_array = np.array(f_vals, dtype=float)
+            mask = ~np.isnan(f_array)
+            if np.sum(mask) > 2:
+                corr, pval = pearsonr(res_fit_interp[mask], f_array[mask])
+                board_corrs[feature_names[f_idx].lower()] = (corr, pval)
+            else:
+                board_corrs[feature_names[f_idx].lower()] = (np.nan, np.nan)
+
+        results.append((save_name, board_corrs))
+
+# --- Print results nicely ---
+for board_name, corrs in results:
+    print(f"\nBoard: {board_name}")
+    for fname, (corr, pval) in corrs.items():
+        print(f"  {fname:15s} : r = {corr: .3f}, p = {pval:.3e}")
