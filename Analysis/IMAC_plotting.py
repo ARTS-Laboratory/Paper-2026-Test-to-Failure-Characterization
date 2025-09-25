@@ -360,33 +360,37 @@ for i, board in enumerate(data_list):
         #             linewidth=0.5)
         #     j -= 1
             
-        # --- Plot stacked traces (as points) ---
+        # --- Plot stacked traces (scatter + line) ---
         fig, ax = plt.subplots(figsize=(6.5, 3.5))
         j = len(norms) - 1
         for trace, fname in zip(norms[::-1], feature_names[::-1]):  # reverse for correct order
-            offset_trace = trace + j * y_offset
+            offset_trace = trace + j * y_offset - 0.5  # shift upward so centered in its lane
             trace_masked = ma.masked_invalid(offset_trace)
-            ax.scatter(np.arange(len(trace)), trace_masked,
-                        label=fname.lower() if fname.lower() != "rms" else "RMS",
-                        s=5,  # marker size
-                        alpha=0.8)  # optional transparency
+        
+            xvals = np.arange(len(trace))
+            # scatter
+            ax.scatter(xvals, trace_masked,
+                       label=fname.lower() if fname.lower() != "rms" else "RMS",
+                       s=5, alpha=0.8, zorder=2)
+            # line through points
+            ax.plot(xvals, trace_masked, linewidth=0.5, color="black", alpha=0.4, zorder=2)
+        
             j -= 1
-
-    
+        
         # y-ticks with lowercase except RMS
         ytick_labels = [f.lower() if f.lower() != "rms" else "RMS" for f in feature_names]
         ax.set_yticks(np.arange(0, len(feature_names), 1))
         ax.set_yticklabels(ytick_labels)
-
+        
         ax.set_xlabel("impact number")
         ax.set_ylabel("normalized feature traces")
-        ax.grid(True, zorder=1)
-
+        ax.grid(True, zorder=0)  # grid drawn underneath everything
+        
         # --- Apply custom x-range per board ---
         save_name = board_save_map[board].lower()
         if save_name in x_ranges:
             ax.set_xlim(*x_ranges[save_name])
-
+        
         plt.tight_layout()
         plt.savefig(os.path.join(save_path, f"{save_name}_features_stacked.png"),
                     dpi=300, bbox_inches="tight")
