@@ -41,7 +41,7 @@ only_boards = [0, 1, 2]   # only keep Boards 1,2,3
 
 # adjust impacts_to_remove for your new dataset if needed
 impacts_to_remove = [
-    [0], [0], [0]  # placeholder — tune for your boards
+    [-1], [-1], [-1]  # placeholder — tune for your boards
 ]
 
 feature_names = [
@@ -416,9 +416,8 @@ plt.grid(True); plt.tight_layout()
 plt.savefig(os.path.join(save_path, "excitation_response.png"), dpi=300, bbox_inches="tight")
 plt.show()
 
-# %% STATISTICAL ANALYSIS (Pearson correlation between resistance and features)
-from scipy.stats import pearsonr
-import matplotlib.pyplot as plt
+# %% STATISTICAL ANALYSIS (Pearson and Spearman correlations between resistance and features)
+from scipy.stats import pearsonr, spearmanr
 import numpy as np
 
 results = []
@@ -427,66 +426,276 @@ for i, board in enumerate(data_list):
     if i in only_boards:
         save_name = board_save_map[board]
 
-        # --- Resistance trendline (already smoothed/fitted) ---
-        res_fit_x = fit_line_x_values[i]  # 0–100 percent
+        # --- Resistance fit interpolated to same length as features ---
+        res_fit_x = fit_line_x_values[i]
         res_fit_y = fit_line_y_values[i]
 
-        # match to actual impacts (% scale)
-        feature_impacts = np.linspace(0, 100, len(features[0]))
+        # --- Extract features for this board (recompute just like in plotting) ---
+        board_folder = os.path.join(file_path, board)
+        lvm_files = sorted([f for f in os.listdir(board_folder) if f.endswith(".lvm")])
+
+        impacts, board_features = [], [[] for _ in feature_names]
+        for j, filename in enumerate(lvm_files):
+            data = np.loadtxt(os.path.join(board_folder, filename), usecols=(2)).tolist()
+            data_zeroed = [val - data[0] for val in data]
+            current_max_index = np.argmax([abs(x) for x in data_zeroed])
+            current_max = abs(data_zeroed[current_max_index])
+            if current_max_index < 1000:
+                data_small = data_zeroed[:(current_max_index + 11000)]
+            else:
+                data_small = data_zeroed[(current_max_index - 1000):(current_max_index + 11000)]
+
+            abs_mean = np.mean(np.abs(data_small))
+            rms_val = np.sqrt(np.mean(np.square(data_small)))
+
+            board_features[0].append(current_max)
+            board_features[1].append(abs_mean)
+            board_features[2].append(rms_val)
+            board_features[3].append(skew(data_small))
+            board_features[4].append(kurtosis(data_small))
+            board_features[5].append(current_max / rms_val if rms_val != 0 else 0)
+            board_features[6].append(rms_val / abs_mean if abs_mean != 0 else 0)
+            board_features[7].append(current_max / abs_mean if abs_mean != 0 else 0)
+            impacts.append(j)
+
+        # --- Normalize features relative to baseline (first 5 points) ---
+        board_features_percent = []
+        for f in board_features:
+            f = np.array(f, dtype=float)
+            baseline = np.nanmean(f[:5]) if np.nanmean(f[:5]) != 0 else 1.0
+            f_percent = 100 * (f - baseline) / baseline
+            board_features_percent.append(f_percent)
+
+        # --- Interpolate resistance to match feature length ---
+        feature_length = len(board_features_percent[0])
+        feature_impacts = np.linspace(0, 100, feature_length)
         res_fit_interp = np.interp(feature_impacts, res_fit_x, res_fit_y)
 
-        # --- Compute correlations for each feature ---
+        # --- Correlation analysis (Pearson + Spearman) ---
         board_corrs = {}
-        for f_idx, f_vals in enumerate(features_percent):
+        for f_idx, f_vals in enumerate(board_features_percent):
             f_array = np.array(f_vals, dtype=float)
             mask = ~np.isnan(f_array)
             if np.sum(mask) > 2:
-                corr, pval = pearsonr(res_fit_interp[mask], f_array[mask])
-                board_corrs[feature_names[f_idx].lower()] = (corr, pval)
+                pear_r, pear_p = pearsonr(res_fit_interp[mask], f_array[mask])
+                spear_r, spear_p = spearmanr(res_fit_interp[mask], f_array[mask])
+                board_corrs[feature_names[f_idx].lower()] = {
+                    "pearson": (pear_r, pear_p),
+                    "spearman": (spear_r, spear_p),
+                }
             else:
-                board_corrs[feature_names[f_idx].lower()] = (np.nan, np.nan)
+                board_corrs[feature_names[f_idx].lower()] = {
+                    "pearson": (np.nan, np.nan),
+                    "spearman": (np.nan, np.nan),
+                }
 
         results.append((save_name, board_corrs))
 
-# --- Print results nicely ---
+# --- Print nicely ---
 for board_name, corrs in results:
     print(f"\nBoard: {board_name}")
-    for fname, (corr, pval) in corrs.items():
-        print(f"  {fname:15s} : r = {corr: .3f}, p = {pval:.3e}")
+    for fname, vals in corrs.items():
+        print(f"  {fname:15s} | "
+              f"Pearson r = {vals['pearson'][0]:.3f}, p={vals['pearson'][1]:.2e} | "
+              f"Spearman rho = {vals['spearman'][0]:.3f}, p={vals['spearman'][1]:.2e}")
+
+import pandas as pd
+import numpy as np
+
+# --- Build DataFrames for Pearson and Spearman ---
+pearson_df = pd.DataFrame({
+    board: {f: vals["pearson"][0] for f, vals in corrs.items()}
+    for board, corrs in results
+}).T
+
+spearman_df = pd.DataFrame({
+    board: {f: vals["spearman"][0] for f, vals in corrs.items()}
+    for board, corrs in results
+}).T
+
+# --- Compute mean ± std ---
+pearson_mean = pearson_df.mean(axis=0)
+pearson_std  = pearson_df.std(axis=0)
+spearman_mean = spearman_df.mean(axis=0)
+spearman_std  = spearman_df.std(axis=0)
+
+# --- Print nicely ---
+print("\n=== Pearson mean ± std across boards ===")
+for feature in pearson_df.columns:
+    print(f"{feature:15s}: {pearson_mean[feature]:.3f} ± {pearson_std[feature]:.3f}")
+
+print("\n=== Spearman mean ± std across boards ===")
+for feature in spearman_df.columns:
+    print(f"{feature:15s}: {spearman_mean[feature]:.3f} ± {spearman_std[feature]:.3f}")
+
+
 
 # %% Feature Importance Bar Plot
-import pandas as pd
+# import pandas as pd
 
-# --- Build DataFrame of r values ---
-df_r = pd.DataFrame(
-    {board: {f: vals[0] for f, vals in corrs.items()} for board, corrs in results}
-).T  # boards as rows
+# # --- Build DataFrame of r values ---
+# df_r = pd.DataFrame(
+#     {board: {f: vals[0] for f, vals in corrs.items()} for board, corrs in results}
+# ).T  # boards as rows
 
-# --- Compute mean ± std across boards ---
-mean_r = df_r.mean(axis=0)
-std_r = df_r.std(axis=0)
+# # --- Compute mean ± std across boards ---
+# mean_r = df_r.mean(axis=0)
+# std_r = df_r.std(axis=0)
 
-# --- Use absolute correlation as importance ---
-importance = mean_r.abs()
+# # --- Use absolute correlation as importance ---
+# importance = mean_r.abs()
 
-# --- Sort by importance ---
-importance_sorted = importance.sort_values(ascending=False)
+# # --- Sort by importance ---
+# importance_sorted = importance.sort_values(ascending=False)
 
-# --- Fix RMS capitalization ---
-importance_sorted.index = [("RMS" if f.lower() == "rms" else f) for f in importance_sorted.index]
+# # --- Fix RMS capitalization ---
+# importance_sorted.index = [("RMS" if f.lower() == "rms" else f) for f in importance_sorted.index]
 
-# --- Plot feature importance bar chart ---
-plt.figure(figsize=(6.5, 3))
-plt.bar(importance_sorted.index, importance_sorted.values, zorder=2)
+# # --- Plot feature importance bar chart ---
+# plt.figure(figsize=(6.5, 3))
+# plt.bar(importance_sorted.index, importance_sorted.values, zorder=2)
 
-plt.ylabel("feature importance") #(|mean r|)
-# plt.xlabel("feature")
-# plt.title("feature importance based on correlation magnitude")
-plt.xticks(rotation=45, ha="right")
+# plt.ylabel("feature importance") #(|mean r|)
+# # plt.xlabel("feature")
+# # plt.title("feature importance based on correlation magnitude")
+# plt.xticks(rotation=45, ha="right")
 
-# Grid behind bars
-plt.grid(axis="y", alpha=0.6, zorder=1)
+# # Grid behind bars
+# plt.grid(axis="y", alpha=0.6, zorder=1)
 
-plt.tight_layout()
-plt.savefig(os.path.join(save_path, "feature_importance.png"), dpi=300, bbox_inches="tight")
+# plt.tight_layout()
+# plt.savefig(os.path.join(save_path, "feature_importance.png"), dpi=300, bbox_inches="tight")
+# plt.show()
+
+# %% Feature Importance Bar Plots (Pearson and Spearman)
+# --- Build DataFrames for Pearson and Spearman ---
+df_pearson = pd.DataFrame(
+    {board: {f: vals["pearson"][0] for f, vals in corrs.items()} for board, corrs in results}
+).T
+df_spearman = pd.DataFrame(
+    {board: {f: vals["spearman"][0] for f, vals in corrs.items()} for board, corrs in results}
+).T
+
+# --- Absolute values as importance ---
+df_pearson = df_pearson.abs()
+df_spearman = df_spearman.abs()
+
+# --- Compute means ---
+pearson_mean = df_pearson.mean(axis=0)
+spearman_mean = df_spearman.mean(axis=0)
+
+# --- Fix RMS capitalization and lowercase everything else ---
+def fix_labels(cols):
+    return [("RMS" if f.lower() == "rms" else f.lower()) for f in cols]
+
+df_pearson.columns = fix_labels(df_pearson.columns)
+df_spearman.columns = fix_labels(df_spearman.columns)
+pearson_mean.index = df_pearson.columns
+spearman_mean.index = df_spearman.columns
+
+# --- Common plotting function ---
+def plot_importance(df, mean_vals, ylabel, filename):
+    # Sort features by mean importance (descending)
+    features_sorted = mean_vals.sort_values(ascending=False).index
+    x = np.arange(len(features_sorted))
+    width = 0.2  # bar width
+
+    fig, ax = plt.subplots(figsize=(6.5, 3))
+
+    # hidden mean bar (gray background)
+    ax.bar(x, mean_vals[features_sorted], color="gray", alpha=0.2, width=0.8, zorder=1, label="mean")
+
+    # each board as a separate bar
+    for j, board in enumerate(df.index):
+        ax.bar(x + (j - 1) * width, df.loc[board, features_sorted],
+               width=width, label=board.lower(), zorder=2)
+
+    # format
+    ax.set_xticks(x)
+    ax.set_xticklabels(features_sorted, rotation=45, ha="right")
+    ax.set_ylabel(ylabel)
+    ax.grid(axis="y", alpha=0.6, zorder=0)
+
+    # legend close to plot
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98))
+
+    plt.tight_layout(rect=[0, 0, 1, 0.9])
+    plt.savefig(os.path.join(save_path, filename), dpi=300, bbox_inches="tight")
+    plt.show()
+
+# --- Pearson plot ---
+plot_importance(df_pearson, pearson_mean, ylabel="feature importance (|r|)", filename="feature_importance_pearson.png")
+
+# --- Spearman plot ---
+plot_importance(df_spearman, spearman_mean, ylabel="feature importance (|ρ|)", filename="feature_importance_spearman.png")
+
+# %% Combined Feature Importance Plot (Pearson above Spearman, both x-axes visible, sorted)
+# --- Build DataFrames for Pearson and Spearman ---
+df_pearson = pd.DataFrame(
+    {board: {f: vals["pearson"][0] for f, vals in corrs.items()} for board, corrs in results}
+).T
+df_spearman = pd.DataFrame(
+    {board: {f: vals["spearman"][0] for f, vals in corrs.items()} for board, corrs in results}
+).T
+
+# --- Absolute values as importance ---
+df_pearson = df_pearson.abs()
+df_spearman = df_spearman.abs()
+
+# --- Compute means ---
+pearson_mean = df_pearson.mean(axis=0)
+spearman_mean = df_spearman.mean(axis=0)
+
+# --- Fix RMS capitalization and lowercase everything else ---
+def fix_labels(cols):
+    return [("RMS" if f.lower() == "rms" else f.lower()) for f in cols]
+
+df_pearson.columns = fix_labels(df_pearson.columns)
+df_spearman.columns = fix_labels(df_spearman.columns)
+pearson_mean.index = df_pearson.columns
+spearman_mean.index = df_spearman.columns
+
+# --- Sort features independently ---
+features_sorted_pearson = pearson_mean.sort_values(ascending=False).index
+features_sorted_spearman = spearman_mean.sort_values(ascending=False).index
+
+width = 0.2  # bar width
+
+# --- Create subplots ---
+fig, axs = plt.subplots(2, 1, figsize=(6.5, 6))
+
+# --- Pearson subplot (top) ---
+x = np.arange(len(features_sorted_pearson))
+axs[0].bar(x, pearson_mean[features_sorted_pearson], color="gray", alpha=0.2,
+           width=0.8, zorder=1, label="mean")
+for j, board in enumerate(df_pearson.index):
+    axs[0].bar(x + (j - 1) * width, df_pearson.loc[board, features_sorted_pearson],
+               width=width, label=board.lower(), zorder=2)
+axs[0].set_xticks(x)
+axs[0].set_xticklabels(features_sorted_pearson, rotation=45, ha="right")
+axs[0].set_ylabel("feature importance (|r|)")
+axs[0].grid(axis="y", alpha=0.6, zorder=0)
+axs[0].set_ylim(0, 1.0)  # <-- set Pearson y-limits manually
+
+# --- Spearman subplot (bottom) ---
+x = np.arange(len(features_sorted_spearman))
+axs[1].bar(x, spearman_mean[features_sorted_spearman], color="gray", alpha=0.2,
+           width=0.8, zorder=1, label="mean")
+for j, board in enumerate(df_spearman.index):
+    axs[1].bar(x + (j - 1) * width, df_spearman.loc[board, features_sorted_spearman],
+               width=width, label=board.lower(), zorder=2)
+axs[1].set_xticks(x)
+axs[1].set_xticklabels(features_sorted_spearman, rotation=45, ha="right")
+axs[1].set_ylabel("feature importance (|ρ|)")
+axs[1].grid(axis="y", alpha=0.6, zorder=0)
+axs[1].set_ylim(0, 1.0)  # <-- set Spearman y-limits manually
+
+# --- One legend at top ---
+handles, labels = axs[0].get_legend_handles_labels()
+fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98))
+
+plt.tight_layout(rect=[0, 0, 1, 0.94])
+plt.savefig(os.path.join(save_path, "feature_importance_combined.png"),
+            dpi=300, bbox_inches="tight")
 plt.show()
