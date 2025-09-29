@@ -107,7 +107,7 @@ for idx, (impacts, resistances, board) in enumerate(zip(impact_numbers_list,
     ax = axes[idx]
     # scale resistance to mΩ
     resistances_mohm = np.array(resistances) * 1000
-    ax.plot(impacts, resistances_mohm, marker='.', linestyle='', linewidth=0.5,
+    ax.plot(impacts, resistances_mohm, marker='.', markersize=2, linestyle='', linewidth=0.5,
             color=next(colors))
     ax.set_xlabel("impact number")
     if idx == 0:
