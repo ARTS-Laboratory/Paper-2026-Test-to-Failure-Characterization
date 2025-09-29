@@ -33,5 +33,5 @@ Cite as:
   title  = {Paper-2026-Test-to-Failure-Characterization},    
   groups = {{ARTS-L}ab},    
   year = {2026},   
-  url    = {https://github.com/ARTS-Laboratory/Paper-2025-Physics-based-Prediction-of-Remaining-Useful-Life},   
+  url    = {https://github.com/ARTS-Laboratory/Paper-2026-Test-to-Failure-Characterization},   
 }
