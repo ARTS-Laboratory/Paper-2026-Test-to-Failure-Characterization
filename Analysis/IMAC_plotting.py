@@ -77,6 +77,94 @@ for i, board in enumerate(data_list):
 
         impact_numbers_list.append(impacts)
         resistance_numbers_list.append(resistances)
+        
+# %% RAW RESISTANCE PLOTS
+
+plt.rcParams['font.family'] = 'Times New Roman'
+plt.rcParams['font.size'] = 10
+colors = itertools.cycle(plt.cm.tab10.colors)
+
+# --- Custom x-limits for each board ---
+x_ranges = {
+    "Board 1": (-3, 50),   # adjust as needed
+    "Board 2": (-3, 50),
+    "Board 3": (-5, 80)
+}
+
+# --- Custom y-limits for each board (converted to mΩ) ---
+y_ranges = {
+    "Board 1": (279.4, 280),
+    "Board 2": (294, 295.2),
+    "Board 3": (270.3, 271.5)
+}
+
+# --- Subplots in one row ---
+fig, axes = plt.subplots(1, 3, figsize=(6.5, 2.5))
+
+for idx, (impacts, resistances, board) in enumerate(zip(impact_numbers_list,
+                                                       resistance_numbers_list,
+                                                       board_names)):
+    ax = axes[idx]
+    # scale resistance to mΩ
+    resistances_mohm = np.array(resistances) * 1000
+    ax.plot(impacts, resistances_mohm, marker='.', markersize=2, linestyle='', linewidth=0.5,
+            color=next(colors))
+    ax.set_xlabel("impact number")
+    if idx == 0:
+        ax.set_ylabel("resistance (mΩ)")
+    ax.grid(True)
+
+    # Apply board-specific limits + ticks
+    save_name = board_save_map[f"Board {idx+1}"]
+
+    if save_name in x_ranges:
+        xmin, xmax = x_ranges[save_name]
+        ax.set_xlim(xmin, xmax)
+        ax.set_xticks([0, xmax/2, xmax])  # ticks at 0, mid, end
+        
+    if save_name in y_ranges:
+        ymin, ymax = y_ranges[save_name]
+        ax.set_ylim(ymin, ymax)
+        ax.set_yticks([ymin,
+               ymin + (ymax - ymin) / 3,
+               ymin + 2 * (ymax - ymin) / 3,
+               ymax])
+    
+    # --- Add subplot label (a), (b), (c) ---
+    labels = ["(a)", "(b)", "(c)"]
+    ax.text(0.5, -0.4, labels[idx], transform=ax.transAxes,
+            ha="center", va="top", fontsize=10)
+
+plt.tight_layout()
+plt.savefig(os.path.join(save_path, "raw_resistance_subplots.png"),
+            dpi=300, bbox_inches="tight")
+plt.show()
+
+# --- 2. Combined plot with all boards ---
+# colors = itertools.cycle(plt.cm.tab10.colors)
+# plt.figure(figsize=(6.5, 3))
+
+# legend_handles, legend_labels = [], []
+# for idx, (impacts, resistances, board) in enumerate(zip(impact_numbers_list,
+#                                                        resistance_numbers_list,
+#                                                        board_names)):
+#     color = next(colors)
+#     plt.plot(impacts, resistances, marker='.', linestyle='-', linewidth=0.5,
+#              color=color)
+#     handle = Line2D([0], [0], marker='.', color=color, linestyle='-',
+#                     markersize=6, linewidth=0.5)
+#     legend_handles.append(handle)
+#     legend_labels.append(board_save_map[f"Board {idx+1}"].lower())
+
+# plt.xlabel("impact number")
+# plt.ylabel("resistance (Ω)")
+# plt.legend(legend_handles, legend_labels, loc="upper right",
+#            facecolor="white", edgecolor="lightgray", framealpha=1, frameon=True)
+# plt.grid(True)
+# plt.tight_layout()
+# plt.savefig(os.path.join(save_path, "raw_resistance_combined.png"),
+#             dpi=300, bbox_inches="tight")
+# plt.show()
 
 # %% CLEAN / NORMALIZE
 resistance_numbers_removed = copy.deepcopy(resistance_numbers_list)
