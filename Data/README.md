@@ -8,6 +8,3 @@ Each board has a "life-cycle_model_data.lvm" file associated with it. The column
     2: Percentage form of impact number.
     3: Percentage form of actual resistance value.
     4: Percentage form of the trendlines predicted resistance value.
-
-
-
